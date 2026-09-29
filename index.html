@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="ja" style="background:#1c1c1e">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>加速タイマー</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background-color:#1c1c1e}
+body{color:#fff;font-family:-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow-y:auto;overflow-x:hidden;padding:20px 16px 48px;background-color:#1c1c1e}
+.container{width:100%;max-width:460px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.title{font-size:17px;font-weight:600;letter-spacing:.3px}
+.subtitle{font-size:13px;color:#8e8e93;margin-top:4px}
+.card{background-color:#2c2c2e;border-radius:14px;padding:20px;margin-bottom:12px}
+.card-label{font-size:12px;color:#8e8e93;font-weight:500;letter-spacing:.5px;margin-bottom:14px}
+.input-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.field-label{font-size:12px;color:#8e8e93;margin-bottom:6px}
+.input-box{background-color:#3a3a3c;border-radius:10px;display:flex;align-items:center;padding:12px 14px;gap:6px}
+.input-box input{background:none;border:none;outline:none;color:#fff;font-family:inherit;font-size:22px;font-weight:300;width:100%;-webkit-appearance:none}
+.input-box .unit{font-size:13px;color:#8e8e93;flex-shrink:0}
+.ratio-row{background-color:#3a3a3c;border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+.ratio-row .label{font-size:13px;color:#8e8e93}
+.ratio-row .value{font-size:15px;font-weight:600;color:#4a9eff}
+.ratio-bar-wrap{height:3px;background-color:#3a3a3c;border-radius:99px;margin-top:10px;overflow:hidden}
+.ratio-bar{height:100%;background-color:#4a9eff;border-radius:99px;transition:width .3s ease}
+.timer-card{background-color:#2c2c2e;border-radius:14px;padding:20px 20px 16px;margin-bottom:12px;text-align:center;position:relative;overflow:hidden}
+.timer-top-bar{position:absolute;top:0;left:0;right:0;height:3px;background-color:#4a9eff;border-radius:14px 14px 0 0;opacity:0;transition:opacity .4s}
+.timer-card.running .timer-top-bar{opacity:1}
+.disp-label{font-size:12px;color:#8e8e93;letter-spacing:.5px;margin-bottom:2px}
+.time-main{font-size:clamp(56px,17vw,80px);font-weight:200;line-height:1;letter-spacing:-2px;color:#fff;transition:color .4s;font-variant-numeric:tabular-nums}
+.time-main.danger{color:#ff6b6b}
+.real-badge{display:inline-flex;align-items:center;gap:8px;margin-top:8px;background-color:#3a3a3c;border-radius:20px;padding:5px 14px;font-size:13px;color:#8e8e93}
+.real-badge .real-val{color:#fff;font-weight:500}
+.live-dot{width:6px;height:6px;border-radius:50%;background-color:#636366;flex-shrink:0}
+.live-dot.on{background-color:#32d74b;box-shadow:0 0 6px #32d74b;animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.progress-wrap{margin-top:14px;height:4px;background-color:#3a3a3c;border-radius:99px;overflow:hidden}
+.progress-bar{height:100%;background-color:#4a9eff;border-radius:99px;width:0%;transition:width .5s linear}
+.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.controls .btn{padding:14px 6px;font-size:14px;white-space:nowrap;gap:4px}
+@media (max-width:359px){.controls{gap:6px}.controls .btn{font-size:13px;padding:14px 2px}.controls .btn .ic{width:16px;height:16px}}
+.controls .btn-start{grid-column:span 3;padding:18px;font-size:16px}
+.btn{border:none;border-radius:12px;font-family:inherit;font-size:15px;font-weight:500;padding:16px;cursor:pointer;transition:opacity .15s,transform .1s;display:flex;align-items:center;justify-content:center;gap:6px;-webkit-tap-highlight-color:transparent}
+.btn:active:not(:disabled){transform:scale(.96);opacity:.8}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-primary{background-color:#4a9eff;color:#fff}
+.btn-secondary{background-color:#2c2c2e;color:#fff}
+.btn-lap{background-color:#2c2c2e;color:#32d74b}
+.btn-wide{grid-column:span 2}
+.sm{padding:10px 16px;font-size:14px}
+.lap-section{display:none;margin-bottom:12px}
+.lap-section.visible{display:block}
+.lap-col-heads{display:grid;grid-template-columns:40px 1fr 1fr 1fr;gap:8px;padding:0 4px 8px}
+.lap-col-head{font-size:11px;color:#8e8e93;text-align:right}
+.lap-col-head:first-child{text-align:left}
+.lap-list{display:flex;flex-direction:column;gap:8px}
+.lap-item{background-color:#2c2c2e;border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:40px 1fr 1fr 1fr;align-items:center;gap:8px;animation:lapIn .2s ease}
+@keyframes lapIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.lap-num{font-size:12px;font-weight:600;color:#4a9eff}
+.lap-name{font-size:13px;color:#ebebf5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lap-cell{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.lap-disp{font-size:14px;font-weight:500;color:#fff;font-variant-numeric:tabular-nums}
+.lap-real{font-size:11px;color:#8e8e93;font-variant-numeric:tabular-nums}
+.modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;align-items:flex-end;justify-content:center;padding:0 16px 20px;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.modal-backdrop.show{display:flex}
+.modal{background-color:#2c2c2e;border-radius:16px;padding:24px 20px;width:100%;max-width:440px;animation:slideUp .25s ease}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-title{font-size:13px;color:#8e8e93;margin-bottom:14px}
+.modal-input{width:100%;background-color:#3a3a3c;border:none;border-radius:10px;color:#fff;font-family:inherit;font-size:17px;padding:14px;outline:none;margin-bottom:14px;-webkit-appearance:none}
+.modal-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.chips:empty{display:none}
+.chip{background-color:#3a3a3c;color:#ebebf5;border:none;border-radius:16px;padding:8px 14px;font-family:inherit;font-size:14px;-webkit-tap-highlight-color:transparent}
+.chip-plan{background-color:#1f3a54;color:#8ec4ff;border:1px solid #2f5c86}
+.chip-plan.used{opacity:.45}
+.finished-overlay{display:none;position:fixed;inset:0;background-color:rgba(28,28,30,.97);z-index:100;flex-direction:column;align-items:center;justify-content:flex-start;padding:32px 20px;overflow-y:auto;text-align:center;gap:16px}
+.finished-overlay.show{display:flex;animation:fadeIn .3s ease}
+.finished-overlay>:first-child{margin-top:auto}
+.finished-overlay>:last-child{margin-bottom:auto}
+#histOverlay>*{margin-top:0;margin-bottom:0}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.finished-title{font-size:52px;font-weight:700;letter-spacing:-1px}
+.finished-sub{font-size:15px;color:#8e8e93}
+.finished-stats{background-color:#2c2c2e;border-radius:14px;padding:18px 20px;width:100%;max-width:400px;text-align:left;font-size:14px;line-height:2;color:#ebebf5}
+.finished-stats .hl{color:#4a9eff;font-weight:600}
+.finished-laps{width:100%;max-width:400px;text-align:left}
+.finished-lap-head{font-size:12px;color:#8e8e93;letter-spacing:.5px;margin-bottom:10px}
+.finished-lap-item{background-color:#2c2c2e;border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:40px 1fr 1fr 1fr;gap:8px;margin-bottom:8px;align-items:center;font-size:13px;color:#fff}
+.sub{color:#8e8e93;font-size:11px}
+.hist-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px}
+.hist-item{background-color:#2c2c2e;border-radius:12px;padding:14px;margin-bottom:8px;cursor:pointer}
+.hist-t{font-size:15px;font-weight:500}
+.hist-s{font-size:12px;color:#8e8e93;margin-top:4px}
+.badge{font-size:11px;color:#ff9f0a;border:1px solid #ff9f0a;border-radius:6px;padding:1px 6px;margin-left:6px}
+.ic{width:18px;height:18px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ic.f{fill:currentColor;stroke:none}
+
+.subj{background-color:#3a3a3c;color:#ebebf5;border:none;border-radius:16px;padding:8px 14px;font-family:inherit;font-size:14px;display:flex;align-items:center;gap:6px;-webkit-tap-highlight-color:transparent}
+.subj.on{background-color:#4a9eff;color:#fff}
+.subj .ic{width:14px;height:14px}
+.subj-wrap{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.subj-row{position:relative;flex:1;min-width:0;display:flex;gap:8px;align-items:center;overflow-x:auto;scrollbar-width:none}
+.subj-row::-webkit-scrollbar{display:none}
+.subj{flex-shrink:0;white-space:nowrap}
+.set-sum{width:100%;background:none;border:none;color:#fff;font-family:inherit;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;text-align:left;-webkit-tap-highlight-color:transparent}
+.set-l{display:flex;flex-direction:column;gap:2px;font-size:15px;font-weight:500}
+.set-l .sub{font-size:12px;font-weight:400}
+.set-r{display:flex;align-items:center;gap:8px;color:#4a9eff;font-weight:600;font-size:15px}
+.set-r .ic{color:#8e8e93;transition:transform .2s}
+.set-body{padding:0 20px 20px}
+.tpl{display:inline-flex;background-color:#3a3a3c;border-radius:16px;overflow:hidden}
+.tpl button{background:none;border:none;color:#ebebf5;font-family:inherit;font-size:14px;padding:8px 10px;-webkit-tap-highlight-color:transparent}
+.tpl button+button{padding-left:0;color:#8e8e93}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="title">加速タイマー</div>
+    <button class="subj" onclick="openHistory()"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>履歴</button>
+  </div>
+
+  <div class="subj-wrap" id="subjCard">
+    <div class="subj-row" id="subjRow"></div>
+    <button class="subj" onclick="openSubjModal(false)" aria-label="教科を追加"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="subj" onclick="openSubjModal(true)" aria-label="教科を編集"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>
+  </div>
+
+  <div class="card" id="setupPanel" style="padding:0">
+    <button class="set-sum" onclick="toggleSet()">
+      <span class="set-l"><span id="sumText"></span><span class="sub" id="sumStart"></span></span>
+      <span class="set-r"><span id="sumRatio"></span><svg class="ic" id="setChev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
+    </button>
+    <div class="set-body" id="setBody" style="display:none">
+    <div class="input-row">
+      <div>
+        <div class="field-label">表示する時間（試験）</div>
+        <div class="input-box"><input type="number" id="displayMin" value="60" min="1" max="600" inputmode="numeric"><span class="unit">分</span></div>
+      </div>
+      <div>
+        <div class="field-label">実際の時間</div>
+        <div class="input-box"><input type="number" id="realMin" value="50" min="1" max="600" inputmode="numeric"><span class="unit">分</span></div>
+      </div>
+    </div>
+    <div style="margin-bottom:14px">
+      <div class="field-label">開始時刻（時計の表示）</div>
+      <div class="input-box"><input type="time" id="startTime" value="09:00" style="min-width:0;text-align:left"><button class="chip" style="background:#48484a;flex-shrink:0" onclick="setNow()">現在</button></div>
+    </div>
+    <div class="ratio-row"><span class="label">加速率</span><span class="value" id="ratioValue">1.20×</span></div>
+    <div class="ratio-bar-wrap"><div class="ratio-bar" id="ratioBar" style="width:20%"></div></div>
+    <div style="margin-top:14px">
+      <div class="field-label">ラップ計画（1行に「名前 目標分」）</div>
+      <textarea id="planText" class="modal-input" rows="3" placeholder="大問1 15&#10;大問2 20&#10;大問3 25" style="font-size:15px;margin-bottom:0;resize:none;line-height:1.5"></textarea>
+    </div>
+    <div style="margin-top:14px">
+      <div class="hist-head" style="margin-bottom:8px"><div class="field-label" style="margin:0">テンプレート</div><button class="subj" onclick="openSubjModal('tpl')">現在の設定を保存</button></div>
+      <div id="tplRow" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+    </div>
+    <label style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;font-size:14px;color:#ebebf5"><span id="wakeLbl">タイマー中は画面を消さない</span><input type="checkbox" id="wakeChk" style="width:22px;height:22px;accent-color:#4a9eff"></label>
+    </div>
+  </div>
+
+  <div class="timer-card" id="timerDisplay">
+    <div class="timer-top-bar"></div>
+    <svg id="clock" viewBox="0 0 200 200" style="width:min(54vw,210px);display:block;margin:0 auto 4px">
+      <circle cx="100" cy="100" r="99" fill="#3a3a3c"/>
+      <path id="pie" d="" fill="#4a9eff" fill-opacity=".3"/>
+      <g id="clockTicks"></g><g id="clockNums"></g>
+      <line id="hHand" x1="100" y1="106" x2="100" y2="56" stroke="#fff" stroke-width="5" stroke-linecap="round"/>
+      <line id="mHand" x1="100" y1="108" x2="100" y2="30" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line id="sHand" x1="100" y1="112" x2="100" y2="22" stroke="#ff9f0a" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="100" cy="100" r="4" fill="#ff9f0a"/>
+    </svg>
+    <div class="subtitle" id="clockInfo" style="margin:0 0 10px"></div>
+    <div class="disp-label">残り時間</div>
+    <div class="time-main" id="timeDisplay">60:00</div>
+    <div class="real-badge"><div class="live-dot" id="liveDot"></div>実時間　<span class="real-val" id="realTimeDisplay">50:00</span></div>
+    <div id="lapLive" style="margin-top:10px;font-size:14px"></div>
+    <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-primary btn-start" id="startBtn" onclick="startTimer()"><svg class="ic f" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>スタート</button>
+    <button class="btn btn-secondary" onclick="resetTimer()"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>リセット</button>
+    <button class="btn btn-lap" id="lapBtn" onclick="openLapModal()" disabled><svg class="ic" viewBox="0 0 24 24"><path d="M5 21V4"/><path d="M5 4h12l-2 4 2 4H5"/></svg>ラップ</button>
+    <button class="btn btn-secondary" id="endBtn" style="color:#ff6b6b" onclick="endEarly()" disabled><svg class="ic f" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>終了</button>
+  </div>
+
+  <div class="lap-section" id="lapSection">
+    <div class="lap-col-heads">
+      <div class="lap-col-head"></div><div class="lap-col-head"></div>
+      <div class="lap-col-head">経過（表示）</div>
+      <div class="lap-col-head">区間タイム</div>
+    </div>
+    <div class="lap-list" id="lapList"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-title">区間名を入力</div>
+    <div class="chips" id="lapChips"></div>
+    <input class="modal-input" id="lapNameInput" type="text" placeholder="空欄なら「区間N」になります" maxlength="20">
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="recordLap()">記録</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="dlgModal" style="z-index:200">
+  <div class="modal">
+    <div id="dlgMsg" style="font-size:15px;line-height:1.6;color:#ebebf5;margin-bottom:18px"></div>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" id="dlgNo">キャンセル</button>
+      <button class="btn btn-primary" id="dlgYes">OK</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="subjModal">
+  <div class="modal">
+    <div class="modal-title" id="subjTitle">教科を追加</div>
+    <input class="modal-input" id="subjInput" type="text" placeholder="教科名（例: 数学）" maxlength="12">
+    <div class="modal-btns">
+      <button class="btn btn-secondary" onclick="closeSubjModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveSubj()">保存</button>
+    </div>
+    <button class="btn btn-secondary" id="subjDel" style="margin-top:10px;width:100%;color:#ff6b6b" onclick="delSubj()">この教科を削除</button>
+  </div>
+</div>
+
+<div class="finished-overlay" id="histOverlay" style="justify-content:flex-start;padding-top:48px">
+  <div style="width:100%;max-width:400px;text-align:left" id="histBody"></div>
+</div>
+<input type="file" id="importFile" accept=".json,application/json" style="display:none">
+
+<div class="finished-overlay" id="finishedOverlay">
+  <div class="finished-title">終了</div>
+  <div class="finished-sub">お疲れ様でした（履歴に保存しました）</div>
+  <input class="modal-input" id="sessionName" type="text" placeholder="セッション名（任意 例: 模試3回目）" maxlength="30" style="max-width:400px;margin:0">
+  <div class="finished-stats" id="finishedStats"></div>
+  <div class="finished-laps" id="finishedLaps"></div>
+  <button class="btn btn-secondary" onclick="closeFinished()" style="margin-top:8px;padding:16px 40px;"><svg class="ic" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>もどる</button>
+</div>
+
+<script>
+  let timer = null, running = false, paused = false;
+  let displayTotalMs = 0, realTotalMs = 0, elapsedRealMs = 0, lastTick = null;
+  let laps = [], lastLapRealMs = 0, lastLapDispMs = 0, runPlan = [], wl = null;
+  let pendingLapRealMs = 0, pendingLapDispMs = 0, currentId = null;
+
+  const HK = 'accelTimer.history.v1', NK = 'accelTimer.lapNames.v1', SK = 'accelTimer.subjects.v1', CK = 'accelTimer.currentSubject.v1', MAX = 300;
+  const $ = id => document.getElementById(id);
+  const displayMinEl = $('displayMin'), realMinEl = $('realMin');
+  const ratioValueEl = $('ratioValue'), ratioBarEl = $('ratioBar');
+  const timeDisplayEl = $('timeDisplay'), realTimeDisplayEl = $('realTimeDisplay');
+  const progressBarEl = $('progressBar'), startBtn = $('startBtn'), lapBtn = $('lapBtn');
+  const timerCard = $('timerDisplay'), liveDot = $('liveDot'), setupPanel = $('setupPanel');
+  const lapSection = $('lapSection'), lapList = $('lapList');
+  const modalBackdrop = $('modalBackdrop'), lapNameInput = $('lapNameInput');
+  const histOv = $('histOverlay'), histBody = $('histBody'), importFile = $('importFile');
+  const IC = {
+    x: '<svg class="ic" style="width:14px;height:14px" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    play: '<svg class="ic f" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>',
+    pause: '<svg class="ic f" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1"/><rect x="14" y="4.5" width="4" height="15" rx="1"/></svg>',
+    back: '<svg class="ic" viewBox="0 0 24 24"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>',
+    plus: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    edit: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
+    up: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>',
+    down: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg>'
+  };
+  let subjects = load(SK), curId = null, subjEdit = false, subjMode = '';
+
+  function load(k) { try { return JSON.parse(localStorage.getItem(k)) || []; } catch (e) { return []; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtDate(t) { const d = new Date(t), p = n => String(n).padStart(2,'0'); return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+
+  function saveSession(status) {
+    const s = { id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2,6), savedAt: Date.now(), subjectId: curId, startTime: $('startTime').value, name: '', status,
+      displayMin: displayTotalMs / 60000, realMin: realTotalMs / 60000, elapsedRealMs, laps };
+    const h = load(HK); h.unshift(s); save(HK, h.slice(0, MAX));
+    return s.id;
+  }
+
+  /* ---- 教科 ---- */
+  function initSubjects() {
+    if (!subjects.length) {
+      subjects = [{ id: 'j' + Date.now().toString(36), name: '教科1', displayMin: 60, realMin: 50, startTime: '09:00', lapNames: load(NK) }];
+      save(SK, subjects);
+    }
+    let c = null; try { c = localStorage.getItem(CK); } catch (e) {}
+    curId = subjects.some(s => s.id === c) ? c : subjects[0].id;
+    subjects.forEach(s => { if (!s.startTime) s.startTime = '09:00'; if (!s.templates) s.templates = []; if (s.plan == null) s.plan = ''; });
+  }
+  const curSubj = () => subjects.find(s => s.id === curId);
+  const sid = x => subjects.some(s => s.id === x.subjectId) ? x.subjectId : subjects[0].id;
+
+  function selectSubject(id) {
+    if (running || paused) return;
+    curId = id;
+    try { localStorage.setItem(CK, id); } catch (e) {}
+    const s = curSubj();
+    displayMinEl.value = s.displayMin; realMinEl.value = s.realMin; $('startTime').value = s.startTime; $('planText').value = s.plan || ''; renderTpl();
+    updateRatio(); syncDisplay(); renderSubjects();
+  }
+
+  function renderSubjects() {
+    const row = $('subjRow'); row.innerHTML = '';
+    const mk = (cls, html, fn, asText) => { const b = document.createElement('button'); b.className = cls; if (asText) b.textContent = html; else b.innerHTML = html; b.onclick = fn; row.appendChild(b); };
+    subjects.forEach(s => mk('subj' + (s.id === curId ? ' on' : ''), s.name, () => selectSubject(s.id), true));
+    const on = row.querySelector('.on'); if (on) row.scrollLeft = Math.max(0, on.offsetLeft - 12);
+  }
+
+  function openSubjModal(edit) {
+    if (running || paused) return;
+    subjMode = edit === 'tpl' ? 'tpl' : ''; subjEdit = edit === true;
+    $('subjTitle').textContent = subjMode ? 'テンプレート名（同名は上書き）' : subjEdit ? '教科名を変更' : '教科を追加';
+    $('subjInput').placeholder = subjMode ? '例: 定期テスト' : '教科名（例: 数学）';
+    $('subjInput').value = subjEdit ? curSubj().name : '';
+    $('subjDel').style.display = subjEdit && subjects.length > 1 ? 'flex' : 'none';
+    $('subjModal').classList.add('show');
+    setTimeout(() => $('subjInput').focus(), 100);
+  }
+  function closeSubjModal() { $('subjModal').classList.remove('show'); }
+
+  function saveSubj() {
+    const n = $('subjInput').value.trim();
+    if (!n) return;
+    if (subjMode === 'tpl') { saveTpl(n); return; }
+    if (subjEdit) curSubj().name = n;
+    else subjects.push({ id: 'j' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), name: n,
+      displayMin: num(displayMinEl, 60), realMin: num(realMinEl, 50), startTime: $('startTime').value || '09:00', lapNames: [], plan: '', templates: [] });
+    save(SK, subjects);
+    closeSubjModal();
+    if (subjEdit) renderSubjects(); else selectSubject(subjects[subjects.length - 1].id);
+  }
+
+  async function delSubj() {
+    const s = curSubj();
+    if (subjects.length < 2 || !(await dlg('「' + s.name + '」とその履歴を削除しますか？'))) return;
+    save(HK, load(HK).filter(x => sid(x) !== s.id));
+    subjects = subjects.filter(x => x.id !== s.id);
+    save(SK, subjects);
+    closeSubjModal();
+    selectSubject(subjects[0].id);
+  }
+
+  $('subjInput').addEventListener('keydown', e => { if (e.key === 'Enter') saveSubj(); });
+
+  /* ---- アナログ時計（試験中の時刻＝開始時刻＋表示経過） ---- */
+  (function buildClock() {
+    let tk = '', nm = '';
+    for (let i = 0; i < 60; i++) {
+      const a = i * 6 * Math.PI / 180, r1 = i % 5 ? 94 : 89, r2 = 98, s = Math.sin(a), c = Math.cos(a);
+      tk += `<line x1="${(100 + r1 * s).toFixed(2)}" y1="${(100 - r1 * c).toFixed(2)}" x2="${(100 + r2 * s).toFixed(2)}" y2="${(100 - r2 * c).toFixed(2)}" stroke="${i % 5 ? '#636366' : '#fff'}" stroke-width="${i % 5 ? 1 : 2}"/>`;
+    }
+    for (let h = 1; h <= 12; h++) {
+      const a = h * 30 * Math.PI / 180;
+      nm += `<text x="${(100 + 74 * Math.sin(a)).toFixed(2)}" y="${(100 - 74 * Math.cos(a)).toFixed(2)}" fill="#ebebf5" font-size="15" font-weight="300" text-anchor="middle" dominant-baseline="central">${h}</text>`;
+    }
+    $('clockTicks').innerHTML = tk; $('clockNums').innerHTML = nm;
+  })();
+
+  function startMinutes() {
+    const [h, m] = ($('startTime').value || '09:00').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+  function hhmm(m) {
+    m = ((Math.round(m) % 1440) + 1440) % 1440;
+    return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+  }
+  function setNow() {
+    const d = new Date();
+    $('startTime').value = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    updateRatio(); syncDisplay(); persistSettings();
+  }
+  function drawClock(elapsedDispMs, remDispMs) {
+    const s = startMinutes(), T = s + elapsedDispMs / 60000;
+    const rot = (id, a) => $(id).setAttribute('transform', `rotate(${a} 100 100)`);
+    rot('hHand', (T / 60 % 12) * 30); rot('mHand', (T % 60) * 6); rot('sHand', (T * 60 % 60) * 6);
+    const span = Math.min(Math.max(0, remDispMs / 60000), 60), a0 = (T % 60) * 6;
+    const pt = a => { const r = a * Math.PI / 180; return [(100 + 90 * Math.sin(r)).toFixed(2), (100 - 90 * Math.cos(r)).toFixed(2)]; };
+    let d = '';
+    if (span >= 59.99) d = 'M100 10A90 90 0 1 1 100 190A90 90 0 1 1 100 10Z';
+    else if (span > 0.01) { const [x0, y0] = pt(a0), [x1, y1] = pt(a0 + span * 6); d = `M100 100L${x0} ${y0}A90 90 0 ${span * 6 > 180 ? 1 : 0} 1 ${x1} ${y1}Z`; }
+    $('pie').setAttribute('d', d);
+    const tot = (running || paused) ? displayTotalMs : (num(displayMinEl, 60)) * 60000;
+    const tm = tot / 60000, rm = Math.max(0, remDispMs / 60000);
+    const lv = rm <= Math.max(1, tm * .05) ? 3 : rm <= Math.max(3, tm * .15) ? 2 : rm <= Math.max(6, tm * .3) ? 1 : 0;
+    $('pie').setAttribute('fill', TONES[lv]); progressBarEl.style.backgroundColor = TONES[lv];
+    timeDisplayEl.style.color = lv ? TONES[lv] : '';
+    $('clockInfo').textContent = `開始 ${hhmm(s)}　終了 ${hhmm(s + tot / 60000)}`;
+  }
+
+  /* ---- 色・計画・比較・テンプレ・スリープ防止 ---- */
+  const TONES = ['#4a9eff', '#ffd60a', '#ff9f0a', '#ff453a'];
+  const WK = 'accelTimer.wake.v1';
+  const sgn = ms => (ms < 0 ? '−' : '+') + formatTime(Math.abs(ms));
+
+  function parsePlan(txt) {
+    return String(txt || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 30).map(x => {
+      const m = x.match(/^(.*?)[\s　]+(\d+(?:\.\d+)?)$/);
+      return m ? { name: m[1].trim(), target: parseFloat(m[2]) } : { name: x, target: null };
+    });
+  }
+  function prevSplitFor(name) {
+    for (const x of load(HK).filter(x => sid(x) === curId)) {
+      const l = (x.laps || []).find(q => q.name === name);
+      if (l) return l.splitDisp;
+    }
+    return null;
+  }
+  function lapNote(l) {
+    let a = '';
+    if (l.target > 0) { const d = l.splitDisp - l.target * 60000; a += `<span style="color:${d > 0 ? '#ff6b6b' : '#32d74b'}">目標${sgn(d)}</span>`; }
+    if (l.prevSplit != null) { const d = l.splitDisp - l.prevSplit; a += (a ? ' ' : '') + `<span style="color:${d > 0 ? '#ff9f0a' : '#32d74b'}">前回${sgn(d)}</span>`; }
+    return a;
+  }
+  function nextPlanItem() {
+    const used = new Set(laps.map(l => l.name));
+    return runPlan.find(p => !used.has(p.name)) || null;
+  }
+
+  function updateLive(elapsedDisp) {
+    const el = $('lapLive'), pl = nextPlanItem();
+    if (!pl) { el.textContent = ''; return; }
+    const cur = elapsedDisp - lastLapDispMs, tgt = pl.target ? pl.target * 60000 : 0;
+    el.textContent = pl.name + '　' + formatTime(cur) + (tgt ? ' / 目標 ' + formatTime(tgt) : '');
+    el.style.color = !tgt ? '#8e8e93' : cur > tgt ? '#ff453a' : cur > tgt * .85 ? '#ffd60a' : '#32d74b';
+  }
+
+  function cleanTpl(a) {
+    return (Array.isArray(a) ? a : []).filter(t => t && t.name).map(t => ({
+      id: String(t.id || 't' + Math.random().toString(36).slice(2, 8)).replace(/[^\w-]/g, ''),
+      name: String(t.name).slice(0, 30), displayMin: +t.displayMin || 60, realMin: +t.realMin || 50,
+      startTime: /^\d\d:\d\d$/.test(t.startTime) ? t.startTime : '09:00', plan: String(t.plan || '') }));
+  }
+  function renderTpl() {
+    const box = $('tplRow'), list = curSubj().templates || [];
+    box.innerHTML = list.length ? '' : '<span class="sub">保存したテンプレートはありません</span>';
+    list.forEach(t => {
+      const w = document.createElement('span'); w.className = 'tpl';
+      const a = document.createElement('button'); a.textContent = t.name; a.onclick = () => applyTpl(t.id);
+      const x = document.createElement('button'); x.innerHTML = IC.x; x.setAttribute('aria-label', '削除'); x.onclick = () => delTpl(t.id);
+      w.append(a, x); box.appendChild(w);
+    });
+  }
+  function applyTpl(id) {
+    if (running || paused) return;
+    const t = (curSubj().templates || []).find(x => x.id === id);
+    if (!t) return;
+    displayMinEl.value = t.displayMin; realMinEl.value = t.realMin; $('startTime').value = t.startTime; $('planText').value = t.plan || '';
+    updateRatio(); syncDisplay(); persistSettings();
+  }
+  function saveTpl(n) {
+    const s = curSubj();
+    s.templates = (s.templates || []).filter(x => x.name !== n);
+    s.templates.push({ id: 't' + Date.now().toString(36), name: n, displayMin: num(displayMinEl, 60), realMin: num(realMinEl, 50),
+      startTime: $('startTime').value || '09:00', plan: $('planText').value });
+    save(SK, subjects); closeSubjModal(); renderTpl();
+  }
+  async function delTpl(id) {
+    if (!(await dlg('このテンプレートを削除しますか？'))) return;
+    const s = curSubj(); s.templates = (s.templates || []).filter(x => x.id !== id);
+    save(SK, subjects); renderTpl();
+  }
+
+  const wakeOK = () => { try { return localStorage.getItem(WK) !== '0'; } catch (e) { return true; } };
+  async function wakeOn() {
+    try { if (wakeOK() && navigator.wakeLock && !wl) { wl = await navigator.wakeLock.request('screen'); wl.addEventListener('release', () => { wl = null; }); } }
+    catch (e) { wl = null; }
+  }
+  function wakeOff() { try { if (wl) wl.release(); } catch (e) {} wl = null; }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && running) wakeOn(); });
+  $('wakeChk').addEventListener('change', e => {
+    try { localStorage.setItem(WK, e.target.checked ? '1' : '0'); } catch (x) {}
+    if (running) { if (e.target.checked) wakeOn(); else wakeOff(); }
+  });
+
+  function setOpen(o) {
+    $('setBody').style.display = o ? 'block' : 'none';
+    $('setChev').style.transform = o ? 'rotate(180deg)' : '';
+  }
+  function toggleSet() { setOpen($('setBody').style.display === 'none'); }
+
+  function num(el, def) { const v = parseFloat(el.value); return v > 0 ? v : def; }
+
+  function updateRatio() {
+    const d = num(displayMinEl, 60), r = num(realMinEl, 50), ratio = d / r;
+    ratioValueEl.textContent = ratio.toFixed(2) + '×';
+    ratioBarEl.style.width = Math.max(0, Math.min((ratio - 1) * 100, 100)) + '%';
+    $('sumText').textContent = d + '分 → ' + r + '分';
+    $('sumRatio').textContent = ratio.toFixed(2) + '×';
+    $('sumStart').textContent = '開始 ' + ($('startTime').value || '09:00');
+  }
+  function persistSettings() {
+    const s = curSubj(), d = parseFloat(displayMinEl.value), r = parseFloat(realMinEl.value);
+    if (d > 0) s.displayMin = d;
+    if (r > 0) s.realMin = r;
+    if ($('startTime').value) s.startTime = $('startTime').value;
+    s.plan = $('planText').value;
+    save(SK, subjects);
+  }
+  [displayMinEl, realMinEl, $('startTime'), $('planText')].forEach(el => el.addEventListener('input', () => { updateRatio(); syncDisplay(); persistSettings(); }));
+
+  function syncDisplay() {
+    if (running || paused) return;
+    timeDisplayEl.textContent = formatTime((num(displayMinEl, 60))*60000);
+    realTimeDisplayEl.textContent = formatTime((num(realMinEl, 50))*60000);
+    drawClock(0, (num(displayMinEl, 60))*60000);
+    runPlan = parsePlan($('planText').value); updateLive(0);
+  }
+  function formatTime(ms) {
+    const s = Math.max(0, Math.round(ms / 1000));
+    return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+  }
+
+  function startTimer() {
+    if (!running && !paused) {
+      displayTotalMs = (num(displayMinEl, 60))*60000;
+      realTotalMs = (num(realMinEl, 50))*60000;
+      runPlan = parsePlan($('planText').value);
+      elapsedRealMs = 0; laps = []; lastLapRealMs = 0; lastLapDispMs = 0;
+      lapList.innerHTML = '';
+      lapSection.classList.remove('visible');
+      setupPanel.style.opacity = '0.4';
+      setupPanel.style.pointerEvents = 'none';
+      $('subjCard').style.opacity = '0.4';
+      $('subjCard').style.pointerEvents = 'none';
+      setOpen(false);
+    }
+    running = true; paused = false;
+    lastTick = performance.now();
+    startBtn.innerHTML = IC.pause + '一時停止';
+    startBtn.onclick = pauseTimer;
+    lapBtn.disabled = $('endBtn').disabled = false;
+    wakeOn();
+    timerCard.classList.add('running');
+    liveDot.classList.add('on');
+    tick();
+  }
+
+  function tick() {
+    if (!running) return;
+    const now = performance.now();
+    elapsedRealMs = Math.min(elapsedRealMs + (now - lastTick), realTotalMs);
+    lastTick = now;
+    const ratio = displayTotalMs / realTotalMs;
+    const remDisp = Math.max(0, displayTotalMs - elapsedRealMs * ratio);
+    const remReal = Math.max(0, realTotalMs - elapsedRealMs);
+    timeDisplayEl.textContent = formatTime(remDisp);
+    drawClock(displayTotalMs - remDisp, remDisp);
+    realTimeDisplayEl.textContent = formatTime(remReal);
+    progressBarEl.style.width = (elapsedRealMs / realTotalMs * 100) + '%';
+    updateLive(displayTotalMs - remDisp);
+    if (elapsedRealMs >= realTotalMs) { finish(); return; }
+    timer = requestAnimationFrame(tick);
+  }
+
+  /* 標準のconfirm/alertは埋め込み表示だと無効になるため、ページ内ダイアログを使う */
+  function dlg(msg, okOnly) {
+    return new Promise(res => {
+      $('dlgMsg').textContent = msg;
+      $('dlgNo').style.display = okOnly ? 'none' : '';
+      $('dlgYes').style.gridColumn = okOnly ? 'span 2' : '';
+      $('dlgYes').textContent = okOnly ? '閉じる' : 'OK';
+      $('dlgModal').classList.add('show');
+      const done = v => { $('dlgModal').classList.remove('show'); res(v); };
+      $('dlgYes').onclick = () => done(true);
+      $('dlgNo').onclick = () => done(false);
+    });
+  }
+
+  async function endEarly() {
+    if (!running && !paused) return;
+    const was = running;
+    if (was) pauseTimer();
+    const ok = await dlg('ここで終了して履歴に保存しますか？');
+    if (!ok) { if (was) startTimer(); return; }
+    finish();
+  }
+
+  function pauseTimer() {
+    running = false; paused = true; wakeOff();
+    cancelAnimationFrame(timer);
+    startBtn.innerHTML = IC.play + '再開';
+    startBtn.onclick = startTimer;
+    timerCard.classList.remove('running');
+    liveDot.classList.remove('on');
+  }
+
+  function resetTimer() {
+    closeModal(); wakeOff();
+    if ((running || paused) && (laps.length || elapsedRealMs >= 60000)) saveSession('aborted');
+    running = false; paused = false;
+    cancelAnimationFrame(timer);
+    elapsedRealMs = 0; laps = []; lastLapRealMs = 0; lastLapDispMs = 0;
+    startBtn.innerHTML = IC.play + 'スタート';
+    startBtn.onclick = startTimer;
+    lapBtn.disabled = $('endBtn').disabled = true;
+    timerCard.classList.remove('running');
+    liveDot.classList.remove('on');
+    timeDisplayEl.classList.remove('danger');
+    progressBarEl.style.width = '0%';
+    setupPanel.style.opacity = '';
+    setupPanel.style.pointerEvents = '';
+    $('subjCard').style.opacity = '';
+    $('subjCard').style.pointerEvents = '';
+    lapList.innerHTML = '';
+    lapSection.classList.remove('visible');
+    syncDisplay();
+  }
+
+  function renderChips() {
+    const box = $('lapChips'); box.innerHTML = '';
+    const used = laps.map(l => l.name);
+    const planNames = [...new Set(runPlan.map(p => p.name))];
+    const histNames = (curSubj().lapNames || []).filter(n => !planNames.includes(n)).slice(0, Math.max(0, 8 - planNames.length));
+    const mk = (n, cls) => {
+      const b = document.createElement('button');
+      b.className = cls; b.textContent = n;
+      b.onclick = () => { lapNameInput.value = n; lapNameInput.focus(); };
+      box.appendChild(b);
+    };
+    planNames.forEach(n => mk(n, 'chip chip-plan' + (used.includes(n) ? ' used' : '')));
+    histNames.forEach(n => mk(n, 'chip'));
+  }
+
+  function openLapModal() {
+    if (!running && !paused) return;
+    const ratio = displayTotalMs / realTotalMs;
+    pendingLapRealMs = elapsedRealMs;
+    pendingLapDispMs = elapsedRealMs * ratio;
+    lapNameInput.value = '';
+    lapNameInput.placeholder = '空欄なら「' + ((nextPlanItem() || {}).name || '区間' + (laps.length + 1)) + '」';
+    renderChips();
+    modalBackdrop.classList.add('show');
+    setTimeout(() => lapNameInput.focus(), 100);
+  }
+  function closeModal() { modalBackdrop.classList.remove('show'); }
+
+  lapNameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') recordLap();
+    if (e.key === 'Escape') closeModal();
+  });
+
+  function recordLap() {
+    const typed = lapNameInput.value.trim();
+    const pl = nextPlanItem() || {};
+    const name = typed || pl.name || ('区間' + (laps.length + 1));
+    if (typed && !runPlan.some(x => x.name === typed)) { const s = curSubj(); s.lapNames = [typed].concat((s.lapNames || []).filter(x => x !== typed)).slice(0, 20); save(SK, subjects); }
+    closeModal();
+    const planMatch = runPlan.find(x => x.name === name);
+    const lap = {
+      num: laps.length + 1, name,
+      totalDisp: pendingLapDispMs, totalReal: pendingLapRealMs,
+      splitDisp: pendingLapDispMs - lastLapDispMs,
+      splitReal: pendingLapRealMs - lastLapRealMs,
+      target: (planMatch && planMatch.target) || null, prevSplit: prevSplitFor(name),
+    };
+    laps.push(lap);
+    lastLapDispMs = pendingLapDispMs;
+    lastLapRealMs = pendingLapRealMs;
+    renderLap(lap); updateLive(pendingLapDispMs);
+    lapSection.classList.add('visible');
+  }
+
+  function renderLap(lap) {
+    const el = document.createElement('div');
+    el.className = 'lap-item';
+    el.innerHTML = `
+      <div class="lap-num">L${lap.num}</div>
+      <div class="lap-name" style="white-space:normal;overflow:visible">${esc(lap.name)}<div class="sub" style="line-height:1.5">${lapNote(lap)}</div></div>
+      <div class="lap-cell"><div class="lap-disp">${formatTime(lap.totalDisp)}</div><div class="lap-real">実 ${formatTime(lap.totalReal)}</div></div>
+      <div class="lap-cell"><div class="lap-disp">${formatTime(lap.splitDisp)}</div><div class="lap-real">実 ${formatTime(lap.splitReal)}</div></div>`;
+    lapList.prepend(el);
+  }
+
+  function lapRow(l) {
+    const r = (d, t) => `<span style="text-align:right">${formatTime(d)}<br><span class="sub">実 ${formatTime(t)}</span></span>`;
+    return `<div class="finished-lap-item"><span style="color:#4a9eff;font-weight:600">L${l.num}</span><span style="color:#ebebf5">${esc(l.name)}<br><span class="sub">${lapNote(l)}</span></span>${r(l.totalDisp, l.totalReal)}${r(l.splitDisp, l.splitReal)}</div>`;
+  }
+
+  function finish() {
+    closeModal(); wakeOff();
+    running = false; paused = false;
+    cancelAnimationFrame(timer);
+    timerCard.classList.remove('running');
+    liveDot.classList.remove('on');
+    lapBtn.disabled = $('endBtn').disabled = true;
+    currentId = saveSession('finished');
+    $('sessionName').value = '';
+    const dMin = (displayTotalMs/60000).toFixed(0), rMin = (realTotalMs/60000).toFixed(0);
+    const ratio = (displayTotalMs/realTotalMs).toFixed(2);
+    const saved = Math.round((displayTotalMs - realTotalMs)/1000);
+    $('finishedStats').innerHTML =
+      `表示時間：<span class="hl">${dMin} 分</span><br>` +
+      `実際の時間：<span class="hl">${rMin} 分</span><br>` +
+      `加速率：<span class="hl">${ratio}×</span><br>` +
+      `短縮時間：<span class="hl">${Math.floor(saved/60)}分 ${saved%60}秒</span><br>` +
+      `使用した実時間：<span class="hl">${formatTime(elapsedRealMs)}</span>`;
+    $('finishedLaps').innerHTML = laps.length ? '<div class="finished-lap-head">ラップ記録</div>' + laps.map(lapRow).join('') : '';
+    $('finishedOverlay').classList.add('show');
+  }
+
+  $('sessionName').addEventListener('input', e => {
+    const h = load(HK), s = h.find(x => x.id === currentId);
+    if (s) { s.name = e.target.value.trim(); save(HK, h); }
+  });
+
+  function closeFinished() {
+    $('finishedOverlay').classList.remove('show');
+    resetTimer();
+  }
+
+  /* ---- 履歴 ---- */
+  function openHistory() { renderHist(); histOv.classList.add('show'); }
+  function closeHistory() { histOv.classList.remove('show'); }
+
+  function renderHist() {
+    const h = load(HK).filter(s => sid(s) === curId);
+    histBody.innerHTML =
+      `<div class="hist-head"><div class="finished-lap-head" style="margin:0">${esc(curSubj().name)} の履歴（${h.length}）</div><button class="btn btn-secondary sm" onclick="closeHistory()">閉じる</button></div>
+       <div class="modal-btns" style="margin-bottom:12px"><button class="btn btn-secondary sm" onclick="exportHist()">${IC.up}書き出し</button><button class="btn btn-secondary sm" onclick="importFile.click()">${IC.down}読み込み</button></div>` +
+      (h.length ? h.map(s => `<div class="hist-item" onclick="showDetail('${s.id}')">
+          <div class="hist-t">${esc(s.name || fmtDate(s.savedAt))}${s.status === 'aborted' ? '<span class="badge">中断</span>' : ''}</div>
+          <div class="hist-s">${fmtDate(s.savedAt)}　表示${s.displayMin}分 / 実${s.realMin}分　ラップ${s.laps.length}件</div></div>`).join('')
+        : '<div class="finished-sub" style="padding:24px 0;text-align:center">まだ記録がありません。終了かリセットで自動保存されます。</div>');
+  }
+
+  function showDetail(id) {
+    const s = load(HK).find(x => x.id === id);
+    if (!s) return;
+    histBody.innerHTML =
+      `<div class="hist-head"><button class="btn btn-secondary sm" onclick="renderHist()">${IC.back}一覧</button><button class="btn btn-secondary sm" style="color:#ff6b6b" onclick="delSession('${id}')">削除</button></div>
+       <div class="finished-stats" style="max-width:none;margin-bottom:12px"><b>${esc(s.name || fmtDate(s.savedAt))}</b>${s.status === 'aborted' ? '<span class="badge">中断</span>' : ''}<br>
+       日時：${fmtDate(s.savedAt)}${s.startTime ? '　試験の開始時刻 ' + s.startTime : ''}<br>表示 <span class="hl">${s.displayMin}分</span> / 実 <span class="hl">${s.realMin}分</span>（${(s.displayMin / s.realMin).toFixed(2)}×）<br>
+       使用した実時間：<span class="hl">${formatTime(s.elapsedRealMs)}</span></div>
+       <div class="finished-lap-head">ラップ記録（経過 / 区間）</div>` +
+      (s.laps.length ? s.laps.map(lapRow).join('') : '<div class="finished-sub">ラップの記録はありません</div>');
+  }
+
+  async function delSession(id) {
+    if (!(await dlg('この記録を削除しますか？'))) return;
+    save(HK, load(HK).filter(x => x.id !== id));
+    renderHist();
+  }
+
+  async function exportHist() {
+    const h = load(HK);
+    if (!h.length) { dlg('書き出す記録がありません', true); return; }
+    const d = new Date(), p = n => String(n).padStart(2, '0');
+    const file = new File([JSON.stringify({ app: 'accel-timer', version: 2, subjects, sessions: h }, null, 1)],
+      `accel-timer-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}.json`, { type: 'application/json' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+    } catch (e) { if (e.name === 'AbortError') return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file); a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  importFile.addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      const inc = (data.sessions || []).filter(s => s && s.id && Array.isArray(s.laps))
+        .map(s => ({ ...s, id: String(s.id).replace(/[^\w-]/g, ''), subjectId: s.subjectId ? String(s.subjectId).replace(/[^\w-]/g, '') : undefined }));
+      const idMap = {};
+      (data.subjects || []).forEach(s => {
+        const id = s && s.id ? String(s.id).replace(/[^\w-]/g, '') : '';
+        if (!id || !s.name) return;
+        const names = Array.isArray(s.lapNames) ? s.lapNames.map(String) : [];
+        const local = subjects.find(x => x.id === id) || subjects.find(x => x.name === String(s.name));
+        if (local) {
+          idMap[id] = local.id;
+          const have = local.lapNames || [];
+          local.lapNames = have.concat(names.filter(n => !have.includes(n))).slice(0, 20);
+          const lt = local.templates || [];
+          local.templates = lt.concat(cleanTpl(s.templates).filter(x => !lt.some(y => y.id === x.id || y.name === x.name)));
+        } else subjects.push({ id, name: String(s.name), displayMin: +s.displayMin || 60, realMin: +s.realMin || 50, startTime: /^\d\d:\d\d$/.test(s.startTime) ? s.startTime : '09:00', lapNames: names.slice(0, 20), plan: String(s.plan || ''), templates: cleanTpl(s.templates) });
+      });
+      inc.forEach(s => { if (s.subjectId && idMap[s.subjectId]) s.subjectId = idMap[s.subjectId]; });
+      save(SK, subjects); renderSubjects(); renderTpl();
+      $('planText').value = curSubj().plan || '';
+      const cur = load(HK), ids = new Set(cur.map(s => s.id));
+      const add = inc.filter(s => !ids.has(s.id));
+      save(HK, cur.concat(add).sort((a, b) => b.savedAt - a.savedAt).slice(0, MAX));
+      renderHist();
+      dlg(`${add.length}件を追加しました（重複${inc.length - add.length}件はスキップ）`, true);
+    } catch (err) { dlg('読み込めませんでした。書き出したJSONファイルを選んでください。', true); }
+  });
+
+  initSubjects();
+  displayMinEl.value = curSubj().displayMin; realMinEl.value = curSubj().realMin; $('startTime').value = curSubj().startTime; $('planText').value = curSubj().plan || ''; renderTpl();
+  $('wakeChk').checked = wakeOK();
+  if (!navigator.wakeLock) { $('wakeChk').disabled = true; $('wakeLbl').textContent += '（この端末は非対応）'; }
+  renderSubjects();
+  updateRatio();
+  syncDisplay();
+</script>
+</body>
+</html>
